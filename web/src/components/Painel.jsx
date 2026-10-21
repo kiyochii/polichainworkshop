@@ -1,4 +1,4 @@
-import { abi, publico, valor, curto, mesmoEndereco, linkEndereco, linkTx, erroLegivel } from "../config.js";
+import { abi, publico, rede, faucet, valor, curto, mesmoEndereco, linkEndereco, linkTx, erroLegivel } from "../config.js";
 import { useSorteio } from "../hooks/useSorteio.js";
 
 export default function Painel({ contrato, carteira, notificar }) {
@@ -150,7 +150,19 @@ export default function Painel({ contrato, carteira, notificar }) {
           <ol className="passos">
             <li>
               <strong>Conecte sua carteira</strong>
-              <span>Use a MetaMask na rede de testes indicada no topo.</span>
+              <span>
+                Use a MetaMask na rede {rede.name}.
+                {faucet && (
+                  <>
+                    {" "}
+                    Sem {rede.nativeCurrency.symbol}? Pegue de graça no{" "}
+                    <a href={faucet} target="_blank" rel="noreferrer">
+                      faucet
+                    </a>
+                    .
+                  </>
+                )}
+              </span>
             </li>
             <li>
               <strong>Compre bilhetes</strong>

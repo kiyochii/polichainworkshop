@@ -1,20 +1,39 @@
 import { createPublicClient, http, isAddress, formatEther } from "viem";
-import { sepolia, holesky, baseSepolia, arbitrumSepolia, optimismSepolia, foundry } from "viem/chains";
+import { xrplevmTestnet, sepolia, holesky, baseSepolia, arbitrumSepolia, optimismSepolia, foundry } from "viem/chains";
 import artefato from "./contracts/Sorteio.json";
 
 export const { abi, bytecode } = artefato;
 
-const REDES = [sepolia, holesky, baseSepolia, arbitrumSepolia, optimismSepolia, foundry];
+const REDES = [xrplevmTestnet, sepolia, holesky, baseSepolia, arbitrumSepolia, optimismSepolia, foundry];
 const env = import.meta.env;
 
-export const rede = REDES.find((c) => c.id === Number(env.VITE_CHAIN_ID || sepolia.id)) ?? sepolia;
+export const rede = REDES.find((c) => c.id === Number(env.VITE_CHAIN_ID || xrplevmTestnet.id)) ?? xrplevmTestnet;
 export const moeda = rede.nativeCurrency.symbol;
 const explorer = rede.blockExplorers?.default.url;
+
+const FAUCETS = {
+  [xrplevmTestnet.id]: "https://faucet.xrplevm.org",
+  [sepolia.id]: "https://cloud.google.com/application/web3/faucet/ethereum/sepolia",
+};
+export const faucet = FAUCETS[rede.id] ?? null;
+
+// Nome do endpoint em foundry.toml e flags de verificação, usados nas instruções de deploy.
+const FORGE = {
+  [xrplevmTestnet.id]: {
+    rpc: "xrpl_testnet",
+    verificar: "--verify --verifier blockscout --verifier-url https://explorer.testnet.xrplevm.org/api/",
+  },
+  [sepolia.id]: { rpc: "sepolia", verificar: "--verify" },
+  [foundry.id]: { rpc: "anvil", verificar: "" },
+};
+export const forge = FORGE[rede.id] ?? { rpc: "<rpc-da-rede>", verificar: "" };
 
 export const publico = createPublicClient({
   chain: rede,
   transport: http(env.VITE_RPC_URL || undefined),
   pollingInterval: 4000,
+  // Agrupa as leituras do painel num único eth_call (o RPC público da XRPL EVM recusa rajadas paralelas).
+  batch: rede.contracts?.multicall3 ? { multicall: true } : undefined,
 });
 
 // Endereço do contrato: .env tem prioridade; senão, o que foi implantado por esta tela (localStorage).

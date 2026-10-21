@@ -1,10 +1,10 @@
 // Lê o último broadcast do Foundry e grava endereço + bloco do Sorteio em web/.env.local.
-//   npm run usar-deploy             -> Sepolia (11155111)
-//   npm run usar-deploy -- 84532    -> outra rede
+//   npm run usar-deploy                -> XRPL EVM Testnet (1449000)
+//   npm run usar-deploy -- 11155111    -> outra rede (ex.: Sepolia)
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-const chainId = process.argv[2] ?? "11155111";
+const chainId = process.argv[2] ?? "1449000";
 const broadcast = fileURLToPath(
   new URL(`../../broadcast/Deploy.s.sol/${chainId}/run-latest.json`, import.meta.url),
 );

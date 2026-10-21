@@ -3,8 +3,13 @@ import { parseEventLogs } from "viem";
 import { abi, publico } from "../config.js";
 
 const EVENTO_SORTEADO = abi.find((x) => x.type === "event" && x.name === "Sorteado");
-// Muitos RPCs gratuitos limitam o intervalo do eth_getLogs; nesse caso olhamos só os blocos recentes.
-const JANELA_RECENTE = 499n;
+// RPCs costumam limitar o intervalo do eth_getLogs (o da XRPL EVM aceita ~10 mil blocos),
+// então o histórico é buscado de trás para frente em janelas, uma por vez: o RPC público
+// responde 502 a consultas paralelas.
+const JANELA = 10_000n;
+const MAX_JANELAS = 30; // com o bloco do deploy conhecido (~2 semanas na XRPL EVM)
+const MAX_JANELAS_SEM_DEPLOY = 6;
+const MAX_HISTORICO = 10;
 
 function paraSorteio(log) {
   return {
@@ -46,19 +51,25 @@ export function useSorteio(endereco, blocoDeploy) {
   }, [endereco, ler]);
 
   const carregarHistorico = useCallback(async () => {
-    const buscar = (fromBlock) => publico.getLogs({ address: endereco, event: EVENTO_SORTEADO, fromBlock });
-    let logs;
+    let ate;
     try {
-      logs = await buscar(blocoDeploy ?? 0n);
+      ate = await publico.getBlockNumber();
     } catch {
+      return;
+    }
+    const inicio = blocoDeploy ?? 0n;
+    const limite = blocoDeploy == null ? MAX_JANELAS_SEM_DEPLOY : MAX_JANELAS;
+    let total = 0;
+    for (let i = 0; i < limite && ate >= inicio && total < MAX_HISTORICO; i++, ate -= JANELA) {
+      const de = ate - JANELA + 1n > inicio ? ate - JANELA + 1n : inicio;
       try {
-        const atual = await publico.getBlockNumber();
-        logs = await buscar(atual > JANELA_RECENTE ? atual - JANELA_RECENTE : 0n);
+        const logs = await publico.getLogs({ address: endereco, event: EVENTO_SORTEADO, fromBlock: de, toBlock: ate });
+        total += logs.length;
+        setHistorico((anterior) => mesclar(anterior, logs.map(paraSorteio)));
       } catch {
-        return;
+        /* janela com erro: segue para a próxima */
       }
     }
-    setHistorico((anterior) => mesclar(anterior, logs.map(paraSorteio)));
   }, [endereco, blocoDeploy]);
 
   /** Registra o resultado de um sortear() a partir do recibo, sem esperar o próximo getLogs. */

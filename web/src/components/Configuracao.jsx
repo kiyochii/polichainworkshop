@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { isAddress } from "viem";
-import { abi, bytecode, rede, publico, salvarContratoLocal, erroLegivel } from "../config.js";
+import { abi, bytecode, rede, publico, salvarContratoLocal, erroLegivel, faucet, forge } from "../config.js";
 
 /** Tela exibida quando nenhum contrato está configurado para a rede. */
 export default function Configuracao({ carteira, aoConfigurar }) {
@@ -48,18 +48,30 @@ export default function Configuracao({ carteira, aoConfigurar }) {
       <section className="card">
         <h2>1. Deploy com Foundry (recomendado)</h2>
         <pre className="codigo">{`# na raiz do projeto
-cp .env.example .env            # preencha SEPOLIA_RPC_URL (e ETHERSCAN_API_KEY)
 cast wallet import deployer --interactive
-forge script script/Deploy.s.sol --rpc-url sepolia \\
-  --account deployer --broadcast --verify
+forge script script/Deploy.s.sol --rpc-url ${forge.rpc} \\
+  --account deployer --broadcast ${forge.verificar}
 
-cd web && npm run usar-deploy   # grava o endereço em web/.env.local
+cd web && npm run usar-deploy -- ${rede.id}   # grava o endereço em web/.env.local
 npm run dev`}</pre>
       </section>
 
       <section className="card">
         <h2>2. Deploy direto pela MetaMask</h2>
-        <p>Usa o bytecode compilado do projeto. Você precisa de um pouco de {rede.nativeCurrency.symbol} de testnet para o gas.</p>
+        <p>
+          Usa o bytecode compilado do projeto. Você precisa de um pouco de {rede.nativeCurrency.symbol} de testnet para o
+          gas{faucet ? (
+            <>
+              {" "}
+              (pegue no{" "}
+              <a href={faucet} target="_blank" rel="noreferrer">
+                faucet
+              </a>
+              )
+            </>
+          ) : null}
+          .
+        </p>
         {!conectado ? (
           <button className="btn btn-primario" onClick={conectar}>
             Conectar carteira

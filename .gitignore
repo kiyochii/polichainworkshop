@@ -1,0 +1,6 @@
+cache/
+out/
+broadcast/*/31337/
+.env
+web/.env
+web/.env.local

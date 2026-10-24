@@ -1,6 +1,13 @@
+# Foundry (cada desafio gera os seus)
 cache/
 out/
 broadcast/*/31337/
+**/broadcast/*/31337/
+
+# Segredos e configuração local
 .env
-web/.env
-web/.env.local
+.env.local
+
+# Front-ends
+node_modules/
+dist/

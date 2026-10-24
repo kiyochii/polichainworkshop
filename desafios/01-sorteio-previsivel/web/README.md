@@ -31,7 +31,7 @@ Pré-requisito: [Foundry](https://book.getfoundry.sh/getting-started/installatio
 o RPC da XRPL é público e a verificação usa o Blockscout, sem chave.
 
 ```bash
-# na raiz do projeto
+# na pasta do desafio: desafios/01-sorteio-previsivel
 cast wallet import deployer --interactive   # chave privada de uma carteira de TESTE com XRP do faucet
 
 forge script script/Deploy.s.sol --rpc-url xrpl_testnet --account deployer --broadcast \
@@ -68,12 +68,12 @@ npm run build              # gera web/dist (site estático)
 ```
 
 Publique `web/dist` em qualquer hospedagem estática (Vercel, Netlify, GitHub Pages, Cloudflare Pages).
-Na Vercel/Netlify: diretório raiz `web`, build `npm run build`, saída `dist`, e cadastre as variáveis `VITE_*`
+Na Vercel/Netlify: diretório raiz `desafios/01-sorteio-previsivel/web`, build `npm run build`, saída `dist`, e cadastre as variáveis `VITE_*`
 no painel (elas são embutidas no build).
 
 ## Outras redes
 
-- **Sepolia:** descomente `sepolia` em `foundry.toml`, preencha o `.env` da raiz (veja `.env.example`), faça o
+- **Sepolia:** descomente `sepolia` em `foundry.toml`, preencha o `.env` da pasta do desafio (veja `.env.example`), faça o
   deploy com `--rpc-url sepolia --verify` e rode `npm run usar-deploy -- 11155111`.
 - **Anvil (local):**
   ```bash

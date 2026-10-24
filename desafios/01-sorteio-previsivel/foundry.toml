@@ -1,7 +1,11 @@
+# Projeto Foundry deste desafio. Rode os comandos `forge` a partir desta pasta.
 [profile.default]
 src = "src"
+test = "test"
+script = "script"
 out = "out"
-libs = ["lib"]
+libs = ["../../lib"]                                  # forge-std compartilhado na raiz do repositório
+remappings = ["forge-std/=../../lib/forge-std/src/"]
 
 # Endpoints usados por `--rpc-url <nome>`.
 [rpc_endpoints]

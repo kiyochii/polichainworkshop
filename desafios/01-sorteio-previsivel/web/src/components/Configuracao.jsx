@@ -47,7 +47,7 @@ export default function Configuracao({ carteira, aoConfigurar }) {
 
       <section className="card">
         <h2>1. Deploy com Foundry (recomendado)</h2>
-        <pre className="codigo">{`# na raiz do projeto
+        <pre className="codigo">{`# na pasta do desafio (desafios/01-sorteio-previsivel)
 cast wallet import deployer --interactive
 forge script script/Deploy.s.sol --rpc-url ${forge.rpc} \\
   --account deployer --broadcast ${forge.verificar}

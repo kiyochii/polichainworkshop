@@ -1,116 +1,67 @@
-# Workshop: Insecure Randomness em Solidity
+# Workshop Polichain: desafios de segurança em Solidity
 
-> ⚠️ Os contratos deste repositório são **vulneráveis de propósito**. Não faça deploy em mainnet.
+> ⚠️ Todos os contratos deste repositório são **vulneráveis de propósito**. Use somente em testnet.
 
-**Público:** intermediário (já escreveu Solidity básico) · **Duração sugerida:** ~90 min · **Ferramenta:** Foundry
+Cada desafio é independente e fica em `desafios/NN-nome/`, com contratos, testes, solução, site (dApp) e
+writeup próprios. A biblioteca `forge-std` em `lib/` é compartilhada por todos.
+
+## Desafios
+
+| # | Desafio | Tema | Pasta |
+|---|---|---|---|
+| 01 | Sorteio previsível | Aleatoriedade insegura (SWC-120) | [`desafios/01-sorteio-previsivel`](desafios/01-sorteio-previsivel) |
+
+## Pré-requisitos
+
+- [Foundry](https://book.getfoundry.sh/getting-started/installation): `curl -L https://foundry.paradigm.xyz | bash && foundryup`
+- Node.js 18+ (para os sites)
+- MetaMask (para usar os sites em testnet)
+
+## Como rodar um desafio
+
+```bash
+cd desafios/01-sorteio-previsivel
+forge test                       # contratos e testes do desafio
+
+cd web
+npm install && npm run dev       # site do desafio em http://localhost:5173
+```
+
+Cada pasta tem um `README.md` (roteiro do desafio e deploy) e um `writeup.md` (solução, com spoiler).
+
+Testar todos os desafios de uma vez:
+
+```bash
+for d in desafios/*/; do (cd "$d" && forge test); done
+```
 
 ## Estrutura
 
 ```
-src/Sorteio.sol        # o sorteio vulnerável (alvo)
-src/Atacante.sol       # esqueleto do exercício (TODOs)
-test/Sorteio.t.sol     # Parte 1: fluxo normal + prova de que o vencedor é previsível
-test/Exploit.t.sol     # Parte 2: passa quando o Atacante estiver certo
-solucao/Atacante.sol   # solução — NÃO distribuir antes do exercício
+lib/forge-std/                  # dependência compartilhada
+desafios/
+└── NN-nome/
+    ├── foundry.toml            # projeto Foundry do desafio (aponta para ../../lib)
+    ├── src/                    # contrato(s) vulnerável(is) + esqueleto do exercício
+    ├── test/                   # testes (fluxo normal + exploit)
+    ├── script/                 # deploy (forge script)
+    ├── solucao/                # solução: não distribuir antes do exercício
+    ├── web/                    # dApp React + Vite + viem (opcional)
+    ├── .env.example
+    ├── README.md               # roteiro do desafio
+    └── writeup.md              # writeup completo
 ```
 
-## Setup dos participantes (fazer antes do dia)
+## Criando um novo desafio
 
-```bash
-curl -L https://foundry.paradigm.xyz | bash && foundryup
-git clone <repo> && cd <repo>
-forge build
-forge test   # esperado: Sorteio passa, Exploit FALHA
-```
-
-> Dica: publique o repositório **sem** a pasta `solucao/` (ou numa branch separada).
-
----
-
-## Roteiro
-
-### 1. Contexto (10 min)
-- Por que a blockchain é **determinística**: todo nó precisa reexecutar a transação e chegar ao mesmo resultado → não existe `random()` nativo.
-- Fontes "tentadoras" e por que todas falham:
-
-| Fonte | Problema |
-|---|---|
-| `block.timestamp` | Público; validador tem margem de manipulação |
-| `block.prevrandao` (ex-`difficulty`) | Igual para todos os contratos no mesmo bloco; o proponente do bloco conhece antes |
-| `blockhash(block.number)` | Sempre retorna `0` (bloco atual ainda não tem hash) |
-| `blockhash(block.number - 1)` | Público para qualquer um no bloco atual |
-| `msg.sender`, `jogadores.length`, nonce | Controlados ou conhecidos pelo atacante |
-
-- Casos reais: SmartBillions (2017), Fomo3D/airdrop (2018), diversas loterias em BSC. Referência: **SWC-120**.
-
-### 2. Apresentar o contrato (10 min)
-Ler `src/Sorteio.sol` juntos. Perguntar à turma: *"Onde está o problema?"* antes de revelar.
-
-Pontos-chave:
-- `sortear()` é público — qualquer um escolhe **quando** sortear.
-- A semente usa só valores que qualquer contrato lê no mesmo bloco.
-
-### 3. Demo: o vencedor é previsível (10 min)
-```bash
-forge test --match-test test_vencedor_e_previsivel -vv
-```
-O teste calcula o vencedor **antes** de chamar `sortear()` e acerta. Se um teste consegue, um contrato também consegue.
-
-### 4. Exercício: escrever o ataque (30 min)
-Os participantes implementam `src/Atacante.sol` seguindo os TODOs e rodam:
-```bash
-forge test --match-contract ExploitTest -vv
-```
-
-**Dicas progressivas** (liberar a cada ~10 min):
-1. Um contrato que chama outro executa no **mesmo bloco** → `block.timestamp` e `block.prevrandao` são idênticos.
-2. Depois que você entrar, `jogadores.length` vira `n + 1` e você estará no último índice.
-3. Se a conta não favorece você, `revert` — você só perde gas e tenta no próximo bloco (o teste simula isso com `vm.roll`/`vm.prevrandao`).
-
-Ao final, mostrar `solucao/Atacante.sol`. Para validar: `cp solucao/Atacante.sol src/Atacante.sol` e trocar o import para `"./Sorteio.sol"`.
-
-### 5. Mitigação (20 min)
-
-**a) Chainlink VRF (recomendado)** — aleatoriedade com prova criptográfica, entregue em uma transação **posterior**:
-
-```solidity
-// npm/forge install smartcontractkit/chainlink-brownie-contracts
-import {VRFConsumerBaseV2Plus} from "@chainlink/contracts/src/v0.8/vrf/dev/VRFConsumerBaseV2Plus.sol";
-import {VRFV2PlusClient} from "@chainlink/contracts/src/v0.8/vrf/dev/libraries/VRFV2PlusClient.sol";
-
-function sortear() external {
-    require(jogadores.length >= MIN_JOGADORES, "jogadores insuficientes");
-    require(!sorteando, "ja sorteando");
-    sorteando = true; // bloqueia entrar() até o resultado chegar!
-    s_vrfCoordinator.requestRandomWords(VRFV2PlusClient.RandomWordsRequest({
-        keyHash: keyHash,
-        subId: subId,
-        requestConfirmations: 3,
-        callbackGasLimit: 200_000,
-        numWords: 1,
-        extraArgs: VRFV2PlusClient._argsToBytes(VRFV2PlusClient.ExtraArgsV1({nativePayment: false}))
-    }));
-}
-
-function fulfillRandomWords(uint256, uint256[] calldata palavras) internal override {
-    address vencedor = jogadores[palavras[0] % jogadores.length];
-    // ... pagar, resetar, sorteando = false
-}
-```
-
-Pergunta para a turma: *por que `sorteando = true` é essencial?* (sem isso, o atacante vê o número no mempool e entra antes do callback).
-
-**b) Commit-reveal** — cada jogador envia `keccak256(segredo)` e revela depois. Discutir a fraqueza: o **último a revelar** pode desistir se o resultado não o favorecer → exige depósito/penalidade.
-
-**c) O que NÃO resolve:** bloquear contratos com `require(msg.sender == tx.origin)` ou `extcodesize == 0`. Um bot off-chain (ou o próprio validador) ainda prevê o resultado.
-
-### 6. Encerramento (10 min)
-- Regra de ouro: **se a fonte de aleatoriedade é legível on-chain no momento do uso, ela é previsível.**
-- Bônus para casa: o `Sorteio` tem outra falha — se o vencedor for um contrato que rejeita ETH, `sortear()` reverte para sempre (DoS). Como corrigir? (padrão *pull payment*).
-
-## Comandos úteis
-
-```bash
-forge test                                    # todos os testes
-forge test --match-contract ExploitTest -vvvv # trace completo do ataque
-```
+1. Crie `desafios/NN-nome/` (numeração com dois dígitos, nome em kebab-case).
+2. Copie o `foundry.toml` do desafio 01. Ele já aponta `libs`/`remappings` para o `forge-std` da raiz.
+3. Escreva o alvo em `src/`, os testes em `test/` (um que prova o fluxo normal e um que só passa com o
+   exploit), a solução em `solucao/` e o deploy em `script/Deploy.s.sol`.
+4. Opcional: copie `desafios/01-sorteio-previsivel/web/` como base do site. Os pontos a trocar são:
+   - `scripts/sync-abi.mjs`: caminho do artefato (`out/<Contrato>.sol/<Contrato>.json`);
+   - `src/config.js` e `src/hooks/`: ABI, leituras e eventos do novo contrato;
+   - `scripts/usar-deploy.mjs`: nome do contrato procurado no broadcast (`contractName === "Sorteio"`);
+   - `src/components/Painel.jsx`: a interface.
+   A conexão com MetaMask (`useCarteira.js`), as redes (`config.js`) e as notificações já servem como estão.
+5. Escreva o `README.md` (roteiro) e o `writeup.md` (solução) e adicione uma linha na tabela acima.

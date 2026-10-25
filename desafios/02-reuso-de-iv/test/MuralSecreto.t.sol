@@ -11,7 +11,7 @@ contract MuralSecretoTest is Test {
     bytes segredo = bytes("PARABENS{reuso_de_iv_e_two_time_pad}");
 
     function setUp() public {
-        vm.roll(1_000); // bloco 1000 -> epoca = 1000 / 256 = 3
+        vm.roll(1_000);
         mural = new MuralSecreto(chave, segredo);
     }
 
@@ -27,33 +27,29 @@ contract MuralSecretoTest is Test {
         mural.revelarNota(keccak256("chute"));
     }
 
-    /// @notice O PONTO FRACO: blocos diferentes da MESMA época dão o MESMO IV.
-    function test_iv_se_repete_na_mesma_epoca() public {
+    /// @notice O PONTO FRACO: o IV vem do endereço do dono → é CONSTANTE sempre.
+    function test_iv_e_fixo_para_sempre() public {
         vm.roll(1_000);
         uint256 iv1 = mural.ivAtual();
 
-        vm.roll(1_020); // mesma época: 768..1023 (1020 / 256 == 3)
+        vm.roll(9_999_999); // muito tempo depois
         uint256 iv2 = mural.ivAtual();
 
-        vm.roll(1_100); // 1100 / 256 == 4: época nova
-        uint256 iv3 = mural.ivAtual();
-
-        assertEq(iv1, iv2, "IV deveria se repetir dentro da epoca (bug)");
+        assertEq(iv1, iv2, "IV nao deveria mudar com o tempo (bug)");
         assertEq(iv1, mural.ivNota(), "e e o mesmo IV da nota secreta");
-        assertTrue(iv3 != iv1, "em outra epoca o IV muda");
+        assertEq(iv1, uint256(keccak256(abi.encodePacked(address(this)))), "IV = keccak(dono)");
 
-        console.log("IV da nota (epoca 3):", iv1);
-        console.log("IV em outra epoca (4):", iv3);
+        console.log("IV fixo (keccak do dono):", iv1);
     }
 
-    /// @notice Publicar ZEROS devolve exatamente o keystream daquela época.
+    /// @notice Publicar ZEROS devolve exatamente o keystream (IV fixo).
     function test_zeros_revelam_o_keystream() public {
         bytes memory zeros = new bytes(8);
         (bytes memory saida, uint256 iv) = mural.publicar(zeros);
 
         assertEq(iv, mural.ivNota(), "mesmo IV da nota");
-        // saida == keystream: duas publicacoes de zeros na mesma epoca sao iguais.
+        // saida == keystream: duas publicacoes de zeros sao sempre iguais (IV fixo).
         (bytes memory saida2, ) = mural.publicar(new bytes(8));
-        assertEq(saida, saida2, "mesmo keystream para todo mundo na epoca");
+        assertEq(saida, saida2, "mesmo keystream para todo mundo");
     }
 }

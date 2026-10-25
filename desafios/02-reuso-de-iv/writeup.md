@@ -13,10 +13,10 @@
 ## TL;DR
 
 `MuralSecreto` cifra com uma cifra de fluxo caseira: `cifrado = texto ⊕ keystream`, onde
-`keystream = keccak256(chave, iv, contador)`. O `iv` vem de `block.number / 256` — um parâmetro da chain que
-**se repete** por 256 blocos. Logo, toda mensagem da mesma época usa o **mesmo keystream**. O atacante publica,
-na mesma época, um texto conhecido (zeros) do tamanho da nota; o cifrado devolvido **é** o keystream
-(`0 ⊕ K = K`). Então `segredo = notaSecreta ⊕ keystream`. A chave nunca é usada.
+`keystream = keccak256(chave, iv, contador)`. O `iv` vem de `keccak256(dono)` — o hash do endereço do dono,
+um parâmetro **fixo** da chain. Logo o IV **nunca muda** e toda mensagem usa o **mesmo keystream**. O atacante
+publica, a qualquer momento, um texto conhecido (zeros) do tamanho da nota; o cifrado devolvido **é** o
+keystream (`0 ⊕ K = K`). Então `segredo = notaSecreta ⊕ keystream`. A chave nunca é usada.
 
 ---
 
@@ -29,7 +29,7 @@ Um "mural" on-chain de mensagens cifradas:
 - `revelarNota(chave)`: só o dono, com a chave certa, decifra a própria nota.
 
 No `test/Exploit.t.sol`, o segredo é `PARABENS{reuso_de_iv_e_two_time_pad}`, cifrado no bloco 1000. O atacante
-controla o contrato `Atacante`, age no bloco 1020 (mesma época) e precisa devolver o segredo em claro —
+controla o contrato `Atacante`, age em qualquer bloco (o IV é fixo) e precisa devolver o segredo em claro —
 **sem** conhecer a `chave`.
 
 ## 2. Cifra de fluxo em 30 segundos
@@ -49,10 +49,8 @@ não precisa ser secreto — precisa ser **único**.
 O coração do contrato:
 
 ```solidity
-uint256 public constant INTERVALO_IV = 256;
-
 function _iv() internal view returns (uint256) {
-    return block.number / INTERVALO_IV;   // <- parâmetro da chain que se repete
+    return uint256(keccak256(abi.encodePacked(dono)));   // <- parâmetro FIXO da chain
 }
 
 function _keystream(uint256 iv, uint256 tamanho) internal view returns (bytes memory ks) {
@@ -64,15 +62,13 @@ function _cifrar(bytes memory texto, uint256 iv) internal view returns (bytes me
 }
 ```
 
-O desenvolvedor "rotaciona" o IV a cada 256 blocos achando que isso evita repetição. Mas **dentro de uma
-época** (`block.number / 256` constante) o IV é idêntico para **todas** as mensagens — inclusive a nota
-secreta e qualquer coisa que o atacante publicar no mesmo intervalo. Época 3, por exemplo, cobre os blocos
-768–1023:
+O desenvolvedor "personaliza" o IV por contrato usando o endereço do dono, achando que isso basta. Mas o dono
+é `immutable`: o IV é **o mesmo para sempre**, idêntico para **todas** as mensagens — a nota secreta e qualquer
+coisa que o atacante publicar. Não há janela de tempo; o ataque funciona em qualquer bloco:
 
 ```bash
-forge test --match-test test_iv_se_repete_na_mesma_epoca -vv
-# IV da nota (epoca 3): 3
-# IV em outra epoca (4): 4
+forge test --match-test test_iv_e_fixo_para_sempre -vv
+# IV fixo (keccak do dono): 73588433689905807603874421223249468862754204383433953894953275339689392807051
 ```
 
 Com o IV repetido, dois cifrados compartilham o keystream `K`:
@@ -91,7 +87,7 @@ escolhe `A`. Se `A = 0...0`, então `Ca = 0 ⊕ K = K`: o cifrado devolvido **é
 ### Ideia
 
 1. Ler `notaSecreta()` (público) e o seu tamanho `n`.
-2. Publicar, **na mesma época**, `n` bytes zero. O retorno é o keystream `K` daquela época.
+2. Publicar `n` bytes zero (em qualquer bloco). O retorno é o keystream `K` (o IV é fixo).
 3. `segredo = notaSecreta ⊕ K`.
 
 Nenhuma dessas etapas toca na `chave`.
@@ -116,8 +112,8 @@ function recuperarSegredo() external returns (bytes memory segredo) {
 
 Detalhes que costumam derrubar quem está resolvendo:
 
-- **Mesma época.** `recuperarSegredo()` precisa rodar enquanto `block.number / 256` for igual ao da nota.
-  Fora da época, o IV muda e o keystream não bate. (No teste: nota no bloco 1000, ataque no 1020.)
+- **Sem janela.** Como o IV é `keccak(dono)` (fixo), `recuperarSegredo()` funciona em qualquer bloco, hoje
+  ou daqui a meses. (No teste, o ataque roda no bloco 5.000.000, muito depois do deploy.)
 - **Tamanho.** O texto publicado precisa ter **pelo menos** o tamanho da nota, senão falta keystream.
 - **Manter o XOR explícito.** Usar zeros é um atalho (`Ca = K`), mas o XOR `conhecido ⊕ cifrado` funciona com
   qualquer texto conhecido — útil quando só se conhece um pedaço do claro (*crib dragging*).
@@ -138,14 +134,16 @@ Logs:
   Segredo recuperado: PARABENS{reuso_de_iv_e_two_time_pad}
 ```
 
-## 5. Particularidade da XRPL EVM Testnet
+## 5. Por que o IV fixo é o pior caso
 
-Na XRPL EVM Testnet (chainId `1449000`), `block.prevrandao` (o antigo `difficulty`/`mixHash`) vem **sempre 0**
-— o mesmo detalhe que aparece no Desafio 01. Se este contrato derivasse o IV de `block.prevrandao`, o IV seria
-**0 para sempre**, em qualquer bloco: todas as mensagens de toda a vida do contrato compartilhariam um único
-keystream. O two-time pad viraria um "pad infinito" — qualquer publicação de zeros vazaria o keystream e
-decifraria **todo** o histórico do mural. Derivar IV de `block.number / N` é "só" ruim por época; de
-`prevrandao` nessa rede, seria catastrófico de forma permanente.
+Derivar o IV de `keccak256(dono)` o torna **constante durante toda a vida do contrato**: o dono é `immutable`,
+então todas as mensagens — passadas e futuras — compartilham um único keystream. O two-time pad vira um "pad
+infinito": **um** `publicar()` de zeros vaza o keystream e decifra **todo** o histórico do mural, hoje ou daqui
+a anos. Não existe janela para fechar.
+
+Qualquer fonte fixa/previsível tem o mesmo efeito: o endereço do dono, `block.chainid`, uma constante — ou,
+na XRPL EVM Testnet (chainId `1449000`), `block.prevrandao`, que nessa rede vem **sempre 0** (o mesmo detalhe
+do Desafio 01). O erro não é *qual* valor se usa, e sim que o IV **não varia por mensagem**.
 
 ## 6. Casos reais
 
@@ -160,8 +158,8 @@ decifraria **todo** o histórico do mural. Derivar IV de `block.number / N` é "
 
 ### a) Nonce único por mensagem
 
-Nunca derive o IV de um valor da chain que possa repetir. Use um contador que **só cresce** (ou um nonce
-aleatório suficientemente grande) e guarde-o junto do cifrado:
+Nunca derive o IV de um valor fixo ou previsível (endereço do dono, `chainid`, uma constante). Use um contador
+que **só cresce** (ou um nonce aleatório suficientemente grande) e guarde-o junto do cifrado:
 
 ```solidity
 uint256 private nonce;
@@ -189,7 +187,7 @@ slot certo). `private` só esconde do Solidity, não da rede. Para confidenciali
 ### d) O que **não** resolve
 
 - Marcar a `chave` como `private` ou `immutable`.
-- "Rotacionar" o IV por tempo/época (o problema é repetir dentro da janela).
+- "Personalizar" o IV por contrato/dono (`keccak(dono)`) — continua fixo e igual para todas as mensagens.
 - Trocar `keccak256` por outra função de hash — enquanto `(chave, IV)` se repetir, o XOR de claros continua.
 
 ## 8. Lições

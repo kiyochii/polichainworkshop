@@ -3,10 +3,11 @@ pragma solidity ^0.8.24;
 
 /// @title MuralSecreto — VULNERÁVEL DE PROPÓSITO (material de workshop)
 /// @notice NÃO USE EM PRODUÇÃO. "Cifra" mensagens com um keystream XOR
-///         (cifra de fluxo caseira). O IV vem de um parâmetro da chain
-///         (`block.number`, em "épocas") e, por isso, SE REPETE: toda mensagem
-///         da mesma época é cifrada com o MESMO keystream. Isso é um
-///         "two-time pad" — basta um texto conhecido para quebrar tudo.
+///         (cifra de fluxo caseira). O IV é derivado do ENDEREÇO do dono
+///         (`keccak256(dono)`) — o hash da chave pública de quem publicou o
+///         contrato. Como o dono é fixo, o IV é CONSTANTE para sempre: toda
+///         mensagem é cifrada com o MESMO keystream. Isso é um "two-time pad" —
+///         basta um texto conhecido para quebrar tudo.
 ///
 /// @dev    A chave mestra `chave` é tratada como secreta (o ideal seria mantê-la
 ///         fora da chain). O ataque deste desafio NÃO usa a chave: ele recupera
@@ -14,11 +15,6 @@ pragma solidity ^0.8.24;
 ///         explorando a REPETIÇÃO DO IV. (Bônus: on-chain a própria `chave` é
 ///         legível via eth_getStorageAt — confidencialidade on-chain é ilusão.)
 contract MuralSecreto {
-    /// @notice Quantos blocos duram uma "época" de IV. O desenvolvedor achou que
-    ///         "trocar o IV de tempos em tempos" bastava — mas dentro da mesma
-    ///         época o IV é constante.
-    uint256 public constant INTERVALO_IV = 256;
-
     bytes32 private immutable chave; // "secreta": sem getter. O ataque não precisa dela.
     address public immutable dono;
 
@@ -44,11 +40,11 @@ contract MuralSecreto {
         notaSecreta = _cifrar(segredo, ivNota);
     }
 
-    /// @notice O IV "rotaciona" a cada época... mas é IDÊNTICO para todos os
-    ///         blocos da mesma época. VULNERABILIDADE: parâmetro da chain
-    ///         (`block.number`) que se repete → reuso de IV.
+    /// @notice O IV vem do endereço do dono (hash da chave pública dele).
+    ///         VULNERABILIDADE: é um parâmetro FIXO da chain → o IV é o mesmo
+    ///         em toda mensagem, para sempre → reuso de IV (two-time pad).
     function _iv() internal view returns (uint256) {
-        return block.number / INTERVALO_IV;
+        return uint256(keccak256(abi.encodePacked(dono)));
     }
 
     /// @notice Keystream de `tamanho` bytes a partir de (chave, iv).
@@ -76,7 +72,7 @@ contract MuralSecreto {
     }
 
     /// @notice Qualquer um publica uma mensagem cifrada no mural.
-    ///         Usa o MESMO IV (o da época atual) para todo mundo.
+    ///         Usa o MESMO IV (keccak do dono) para todo mundo.
     /// @return cifrado o texto cifrado; iv o IV usado (público).
     function publicar(bytes calldata texto) external returns (bytes memory cifrado, uint256 iv) {
         iv = _iv();

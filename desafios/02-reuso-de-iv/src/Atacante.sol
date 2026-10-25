@@ -16,7 +16,7 @@ contract Atacante {
     }
 
     /// @notice Deve devolver o segredo em claro (os mesmos bytes que o dono cifrou).
-    ///         Precisa rodar na MESMA época em que a nota foi cifrada (mesmo IV).
+    ///         O IV é fixo (keccak do dono), então funciona em qualquer bloco.
     function recuperarSegredo() external returns (bytes memory segredo) {
         // TODO 1: pegue o texto cifrado público `notaSecreta()` e o tamanho dele.
         // TODO 2: publique no mural um texto do MESMO tamanho cujo claro você

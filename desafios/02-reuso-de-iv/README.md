@@ -56,17 +56,18 @@ uma `notaSecreta`. Perguntar à turma: *"onde está o problema?"* antes de revel
 
 Pontos-chave:
 - `_cifrar` usa `keystream = keccak256(chave, iv, contador)` em blocos de 32 bytes — uma cifra de fluxo caseira.
-- `publicar()` é **pública** e usa o **mesmo IV** (o da época atual) para todos.
-- O IV vem de `block.number / INTERVALO_IV` — um **parâmetro da chain que se repete** por 256 blocos.
+- `publicar()` é **pública** e usa o **mesmo IV** para todos.
+- O IV vem de `keccak256(dono)` — o hash do **endereço do dono** (a chave pública de quem publicou o
+  contrato). É um **parâmetro fixo da chain**, então o IV **nunca muda**.
 
-### 3. Demo: o IV se repete (10 min)
+### 3. Demo: o IV é fixo (10 min)
 
 ```bash
-forge test --match-test test_iv_se_repete_na_mesma_epoca -vv
+forge test --match-test test_iv_e_fixo_para_sempre -vv
 forge test --match-test test_zeros_revelam_o_keystream -vv
 ```
 
-Blocos diferentes da mesma época produzem o **mesmo IV** — e publicar zeros devolve o keystream cru.
+Blocos quaisquer produzem sempre o **mesmo IV** (`keccak(dono)`) — e publicar zeros devolve o keystream cru.
 
 ### 4. Exercício: recuperar o segredo (30 min)
 
@@ -78,7 +79,7 @@ forge test --match-contract ExploitTest -vv
 
 **Dicas progressivas** (liberar a cada ~10 min):
 1. `notaSecreta()` é público — o texto cifrado do segredo já está na sua mão.
-2. Você também pode cifrar o que quiser, na mesma época, com o **mesmo IV** → o **mesmo keystream**.
+2. Você também pode cifrar o que quiser com o **mesmo IV** (ele é fixo) → o **mesmo keystream**.
 3. Publique zeros do tamanho da nota: o que volta é o keystream. Agora `segredo = notaSecreta ⊕ keystream`.
 
 Ao final, mostrar `solucao/Atacante.sol`. Para validar:
@@ -98,14 +99,15 @@ forge test --match-contract ExploitTest -vv
 - **Confidencialidade on-chain é ilusão.** Todo estado é público: o cifrado, o IV e **a própria chave** em
   `storage` (via `eth_getStorageAt`). Para dados confidenciais, cifre **fora** da chain e guarde só o cifrado,
   ou use ferramentas específicas (commit-reveal, ZK, FHE, TEE, decriptação por threshold).
-- **O que NÃO resolve:** marcar a chave como `private`, "rotacionar" o IV por época, ou trocar o keccak por
-  outra função — enquanto o `(chave, IV)` se repetir, o two-time pad continua.
+- **O que NÃO resolve:** marcar a chave como `private`, derivar o IV de qualquer valor fixo/previsível
+  (endereço do dono, `chainid`, uma constante), ou trocar o keccak por outra função — enquanto o `(chave, IV)`
+  se repetir, o two-time pad continua.
 
 ### 6. Encerramento (10 min)
 
 - Regra de ouro: **um IV repetido transforma qualquer cifra de fluxo em XOR de textos claros.**
-- Bônus para casa: na XRPL EVM Testnet, `block.prevrandao` é **sempre 0**. Se o IV viesse de `prevrandao`,
-  ele seria constante **para sempre** — veja a nota no `writeup.md`.
+- Como o IV aqui é `keccak(dono)` (fixo para sempre), **todo** o histórico do mural compartilha um único
+  keystream: um único `publicar()` de zeros decifra tudo, hoje ou daqui a um ano.
 
 ## Comandos úteis
 

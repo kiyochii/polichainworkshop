@@ -10,6 +10,7 @@ writeup próprios. A biblioteca `forge-std` em `lib/` é compartilhada por todos
 | # | Desafio | Tema | Pasta |
 |---|---|---|---|
 | 01 | Sorteio previsível | Aleatoriedade insegura (SWC-120) | [`desafios/01-sorteio-previsivel`](desafios/01-sorteio-previsivel) |
+| 02 | Mural secreto | Reuso de IV / two-time pad | [`desafios/02-reuso-de-iv`](desafios/02-reuso-de-iv) |
 
 ## Pré-requisitos
 

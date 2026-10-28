@@ -25,8 +25,15 @@ cd desafios/01-sorteio-previsivel
 forge test                       # contratos e testes do desafio
 
 cd web
-npm install && npm run dev       # site do desafio em http://localhost:5173
+npm install
+npm run usar-deploy              # grava web/.env.local com o contrato (precisa de um deploy feito, veja abaixo)
+npm run dev                      # site do desafio em http://localhost:5173
 ```
+
+O site só funciona depois do deploy do contrato: ele precisa do `web/.env.local` com o endereço. O passo a passo
+do deploy (Foundry na XRPL EVM Testnet ou pela MetaMask), a solução de problemas e as variáveis ficam em
+[`web/README.md`](desafios/01-sorteio-previsivel/web/README.md). Rode o `forge script` de dentro da pasta do
+desafio, senão o broadcast não é encontrado pelo `usar-deploy`.
 
 Cada pasta tem um `README.md` (roteiro do desafio e deploy) e um `writeup.md` (solução, com spoiler).
 

